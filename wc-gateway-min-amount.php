@@ -57,7 +57,12 @@ final class WC_Gateway_Min_Amount {
 
 		// Frontend — filter available gateways & inform the customer
 		add_filter( 'woocommerce_available_payment_gateways', [ $this, 'filter_gateways' ] );
-		add_action( 'woocommerce_before_checkout_form',       [ $this, 'print_restriction_notices' ] );
+
+		// Classic checkout notice
+		add_action( 'woocommerce_before_checkout_form', [ $this, 'print_restriction_notices' ] );
+
+		// Blocks checkout notice — wc_add_notice() enqueues into the Store API notice buffer
+		add_action( 'woocommerce_store_api_checkout_update_order_from_request', [ $this, 'blocks_checkout_notices' ], 10, 2 );
 	}
 
 	// ─── Admin ────────────────────────────────────────────────────────────────
@@ -94,7 +99,7 @@ final class WC_Gateway_Min_Amount {
 				<?php esc_html_e( 'Set a minimum cart subtotal for each gateway. Leave blank (or 0) for no minimum. Only gateways enabled inside WooCommerce → Payments are shown here.', 'wcgma' ); ?>
 			</p>
 
-			<?php if ( isset( $_GET['updated'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
+			<?php if ( isset( $_GET['updated'] ) && current_user_can( 'manage_woocommerce' ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 				<div class="notice notice-success is-dismissible">
 					<p><?php esc_html_e( 'Settings saved successfully.', 'wcgma' ); ?></p>
 				</div>
@@ -193,19 +198,20 @@ final class WC_Gateway_Min_Amount {
 
 		foreach ( $raw as $gateway_id => $values ) {
 			$gateway_id = sanitize_key( $gateway_id );
-			if ( empty( $gateway_id ) ) {
+			if ( empty( $gateway_id ) || ! is_array( $values ) ) {
 				continue;
 			}
 
-			$min    = isset( $values['min'] ) ? wc_format_decimal( sanitize_text_field( $values['min'] ) ) : '';
+			$min    = isset( $values['min'] ) ? wc_format_decimal( $values['min'] ) : '';
 			$notice = isset( $values['notice'] ) ? sanitize_text_field( $values['notice'] ) : '';
 
-			// Only persist gateways that actually have a minimum configured
+			// Only persist gateways that have a meaningful minimum configured.
+			// Tie notice to the same condition — an orphaned notice (no min) would never display.
 			if ( $min !== '' && (float) $min > 0 ) {
 				$clean[ $gateway_id ]['min'] = $min;
-			}
-			if ( ! empty( $notice ) ) {
-				$clean[ $gateway_id ]['notice'] = $notice;
+				if ( ! empty( $notice ) ) {
+					$clean[ $gateway_id ]['notice'] = $notice;
+				}
 			}
 		}
 
@@ -247,7 +253,8 @@ final class WC_Gateway_Min_Amount {
 			return $gateways;
 		}
 
-		$cart_total = (float) WC()->cart->get_subtotal();
+		// get_cart_contents_total() is post-coupon, ex-tax — the right basis for a minimum-order check.
+		$cart_total = (float) WC()->cart->get_cart_contents_total();
 
 		foreach ( $gateways as $id => $gateway ) {
 			if ( ! isset( $limits[ $id ]['min'] ) ) {
@@ -271,7 +278,7 @@ final class WC_Gateway_Min_Amount {
 		}
 
 		$limits     = (array) get_option( self::OPTION_KEY, [] );
-		$cart_total = (float) WC()->cart->get_subtotal();
+		$cart_total = (float) WC()->cart->get_cart_contents_total();
 		$gateways   = $this->all_registered_gateways();
 		$messages   = [];
 
@@ -288,11 +295,12 @@ final class WC_Gateway_Min_Amount {
 			$min_formatted = wp_kses_post( wc_price( $min ) );
 
 			if ( ! empty( $config['notice'] ) ) {
-				$messages[] = str_replace( '{min}', $min_formatted, esc_html( $config['notice'] ) );
+				// Substitute first, then sanitize the combined string (which contains HTML from wc_price).
+				$messages[] = wp_kses_post( str_replace( '{min}', $min_formatted, $config['notice'] ) );
 			} else {
 				$messages[] = sprintf(
 					/* translators: 1: gateway name, 2: formatted minimum amount */
-					__( '<strong>%1$s</strong> requires a minimum cart total of %2$s.', 'wcgma' ),
+					'<strong>%1$s</strong> ' . esc_html__( 'requires a minimum cart total of %2$s.', 'wcgma' ),
 					$title,
 					$min_formatted
 				);
@@ -305,6 +313,50 @@ final class WC_Gateway_Min_Amount {
 
 		$notice = implode( '<br>', $messages );
 		wc_print_notice( $notice, 'notice' );
+	}
+
+	/**
+	 * Surface restriction notices inside the Blocks / Store API checkout flow.
+	 * `woocommerce_store_api_checkout_update_order_from_request` fires before
+	 * payment processing, so wc_add_notice() messages reach the block UI.
+	 *
+	 * @param \WC_Order                                                    $order
+	 * @param \Automattic\WooCommerce\StoreApi\Routes\V1\CartItems|object  $request
+	 */
+	public function blocks_checkout_notices( $order, $request ): void {
+		if ( ! WC()->cart ) {
+			return;
+		}
+
+		$limits     = (array) get_option( self::OPTION_KEY, [] );
+		$cart_total = (float) WC()->cart->get_cart_contents_total();
+		$gateways   = $this->all_registered_gateways();
+
+		foreach ( $limits as $id => $config ) {
+			$min = isset( $config['min'] ) ? (float) $config['min'] : 0;
+			if ( $min <= 0 || $cart_total >= $min ) {
+				continue;
+			}
+			if ( ! isset( $gateways[ $id ] ) ) {
+				continue;
+			}
+
+			$title         = esc_html( $gateways[ $id ]->get_title() );
+			$min_formatted = wp_kses_post( wc_price( $min ) );
+
+			if ( ! empty( $config['notice'] ) ) {
+				$message = wp_kses_post( str_replace( '{min}', $min_formatted, $config['notice'] ) );
+			} else {
+				$message = sprintf(
+					/* translators: 1: gateway name, 2: formatted minimum amount */
+					__( '%1$s requires a minimum cart total of %2$s.', 'wcgma' ),
+					$title,
+					$min_formatted
+				);
+			}
+
+			wc_add_notice( $message, 'notice' );
+		}
 	}
 
 	// ─── Helpers ──────────────────────────────────────────────────────────────
