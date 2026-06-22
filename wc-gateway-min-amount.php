@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: WC Gateway Minimum Amount
- * Plugin URI:  https://excellink.lk
+ * Plugin URI:  https://irixsolutions.net
  * Description: Restrict WooCommerce payment gateways by minimum cart total. Configure per-gateway minimums from WooCommerce > Gateway Limits.
  * Version:     1.0.0
  * Author:      Aqeel Husny
@@ -9,7 +9,7 @@
  * Requires at least: 6.0
  * Requires PHP: 8.0
  * WC requires at least: 7.0
- * WC tested up to: 9.x
+ * WC tested up to: 7.x
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
