@@ -70,8 +70,12 @@ final class PGMA_Gateway_Min_Amount {
 		add_action( 'woocommerce_before_cart',          [ $this, 'print_restriction_notices' ] );
 
 		// Blocks cart/checkout have no PHP template hooks, so prepend the same
-		// notice to the block's rendered output instead.
-		add_filter( 'render_block', [ $this, 'prepend_blocks_restriction_notice' ], 10, 2 );
+		// notice to the block's rendered output instead. Must use the per-block
+		// filter, which runs after the generic 'render_block': WooCommerce tags the
+		// first HTML tag with data-block-name there, and the block's JS needs that
+		// tag on its own wrapper, not on our banner, or the checkout never mounts.
+		add_filter( 'render_block_woocommerce/cart',     [ $this, 'prepend_blocks_restriction_notice' ] );
+		add_filter( 'render_block_woocommerce/checkout', [ $this, 'prepend_blocks_restriction_notice' ] );
 
 		// Blocks checkout notice — wc_add_notice() enqueues into the Store API notice buffer
 		add_action( 'woocommerce_store_api_checkout_update_order_from_request', [ $this, 'blocks_checkout_notices' ], 10, 2 );
@@ -633,12 +637,8 @@ final class PGMA_Gateway_Min_Amount {
 			return $gateways;
 		}
 
-		foreach ( $gateways as $id => $gateway ) {
-			if ( ! isset( $limits[ $id ]['min'] ) ) {
-				continue;
-			}
-			$min = (float) $limits[ $id ]['min'];
-			if ( $min > 0 && $cart_total < $min ) {
+		foreach ( array_keys( $gateways ) as $id ) {
+			if ( $this->is_below_minimum( (string) $id, $cart_total ) ) {
 				unset( $gateways[ $id ] );
 			}
 		}
@@ -740,12 +740,7 @@ final class PGMA_Gateway_Min_Amount {
 	 * for an informational message, and the gateway list itself always
 	 * reflects the live total via filter_gateways().
 	 */
-	public function prepend_blocks_restriction_notice( $block_content, $block ) {
-		$block_name = $block['blockName'] ?? '';
-		if ( 'woocommerce/cart' !== $block_name && 'woocommerce/checkout' !== $block_name ) {
-			return $block_content;
-		}
-
+	public function prepend_blocks_restriction_notice( $block_content ) {
 		if ( is_admin() || ! WC()->cart ) {
 			return $block_content;
 		}
@@ -872,6 +867,14 @@ final class PGMA_Gateway_Min_Amount {
 			return;
 		}
 
+		// The session keeps the last chosen gateway even after the cart drops below
+		// that gateway's minimum (it is then hidden at checkout), so don't hand out
+		// a discount/fee for a method the customer can no longer pay with.
+		// Fees are calculated after item totals, so the contents total is current here.
+		if ( $this->is_below_minimum( $chosen, (float) $cart->get_cart_contents_total() ) ) {
+			return;
+		}
+
 		$rules = (array) get_option( self::RULES_OPTION_KEY, [] );
 		if ( empty( $rules[ $chosen ] ) ) {
 			return;
@@ -929,6 +932,13 @@ final class PGMA_Gateway_Min_Amount {
 	}
 
 	// ─── Helpers ──────────────────────────────────────────────────────────────
+
+	/** Whether a gateway has a configured minimum that $total does not reach. */
+	private function is_below_minimum( string $gateway_id, float $total ): bool {
+		$limits = (array) get_option( self::OPTION_KEY, [] );
+		$min    = (float) ( $limits[ $gateway_id ]['min'] ?? 0 );
+		return $min > 0 && $total < $min;
+	}
 
 	/**
 	 * Asset cache-buster: the plugin version in production, the file's mtime
