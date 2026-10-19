@@ -1,156 +1,500 @@
-/* Payment Gateway Minimum Amount — Admin Styles */
+/* Irix Gateway Limits — Admin Styles */
 
 .pgma-wrap {
-	max-width: 1400px;
+	--pgma-accent: var(--wp-admin-theme-color, #2271b1);
+	--pgma-border: #e2e4e7;
+	--pgma-muted: #646970;
+	--pgma-surface: #fff;
+	--pgma-subtle: #f6f7f7;
+	--pgma-radius: 8px;
+	max-width: 1280px;
 }
 
-.pgma-description {
-	color: #646970;
-	margin-bottom: 1.2em;
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.pgma-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 16px;
+	margin: 12px 0 20px;
 }
 
-/* Table column widths */
-.pgma-table .col-gateway { width: 22%; }
-.pgma-table .col-id      { width: 14%; }
-.pgma-table .col-status  { width: 9%; }
-.pgma-table .col-min     { width: 18%; }
-.pgma-table .col-notice  { width: auto; }
-
-.pgma-table th {
+.pgma-header h1 {
+	font-size: 23px;
 	font-weight: 600;
+	padding: 0;
+	margin: 0 0 4px;
 }
 
-/* Enabled / Disabled badges */
-.pgma-badge {
-	display: inline-block;
-	padding: 2px 8px;
-	border-radius: 3px;
+.pgma-header p {
+	color: var(--pgma-muted);
+	margin: 0;
+	font-size: 14px;
+}
+
+.pgma-version {
+	flex-shrink: 0;
+	padding: 2px 10px;
+	border-radius: 999px;
+	background: var(--pgma-subtle);
+	border: 1px solid var(--pgma-border);
+	color: var(--pgma-muted);
 	font-size: 12px;
+	font-weight: 500;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+
+.pgma-tabs {
+	display: flex;
+	gap: 4px;
+	border-bottom: 1px solid var(--pgma-border);
+	margin-bottom: 20px;
+}
+
+.pgma-tab {
+	padding: 10px 16px;
+	margin-bottom: -1px;
+	border-bottom: 2px solid transparent;
+	color: var(--pgma-muted);
+	font-size: 14px;
+	font-weight: 500;
+	text-decoration: none;
+}
+
+.pgma-tab:hover {
+	color: #1d2327;
+}
+
+.pgma-tab.is-active {
+	color: var(--pgma-accent);
+	border-bottom-color: var(--pgma-accent);
+}
+
+.pgma-tab:focus-visible {
+	box-shadow: 0 0 0 2px var(--pgma-accent);
+	outline: none;
+	border-radius: 4px 4px 0 0;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+
+.pgma-card {
+	background: var(--pgma-surface);
+	border: 1px solid var(--pgma-border);
+	border-radius: var(--pgma-radius);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+	padding: 20px 24px;
+	margin-bottom: 16px;
+}
+
+.pgma-card__head h2 {
+	font-size: 16px;
 	font-weight: 600;
-	line-height: 1.6;
+	margin: 0 0 4px;
 }
 
-.pgma-badge--active {
-	background: #d1fae5;
-	color: #065f46;
+.pgma-card__head p {
+	color: var(--pgma-muted);
+	margin: 0 0 16px;
+	max-width: 760px;
 }
 
-.pgma-badge--inactive {
-	background: #f3f4f6;
-	color: #6b7280;
+.pgma-card--toggle {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 24px;
+	flex-wrap: wrap;
 }
 
-/* Amount input with currency symbol */
-.pgma-amount-wrap {
+.pgma-card--toggle .pgma-card__head p {
+	margin-bottom: 0;
+}
+
+.pgma-master-toggle {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: 12px;
+	padding: 12px 16px;
+	border-radius: var(--pgma-radius);
+	background: var(--pgma-subtle);
+	cursor: pointer;
 }
 
-.pgma-currency {
+.pgma-master-toggle span {
+	display: flex;
+	flex-direction: column;
+}
+
+.pgma-master-toggle small {
+	color: var(--pgma-muted);
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+
+.pgma-table-scroll {
+	overflow-x: auto;
+}
+
+.pgma-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.pgma-table th {
+	text-align: left;
+	font-size: 12px;
 	font-weight: 600;
-	color: #3c434a;
-	min-width: 16px;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	color: var(--pgma-muted);
+	padding: 10px 12px;
+	border-bottom: 1px solid var(--pgma-border);
+	white-space: nowrap;
 }
 
-.pgma-input-amount {
-	width: 100px !important;
-	text-align: right;
+.pgma-table td {
+	padding: 14px 12px;
+	border-bottom: 1px solid #f0f0f1;
+	vertical-align: middle;
 }
 
-/* Notice input */
-.pgma-input-notice {
-	width: 100% !important;
-	max-width: 420px;
+.pgma-table tbody tr:last-child td {
+	border-bottom: 0;
 }
 
-.pgma-table .description {
-	font-size: 11px;
-	color: #8c8f94;
-	margin: 4px 0 0;
+.pgma-table tbody tr:hover td {
+	background: #fafafa;
 }
 
-/* Gateway Discounts & Fees screen */
-.pgma-master-toggle {
+.pgma-table .col-gateway strong {
+	display: block;
+	font-size: 14px;
+}
+
+.pgma-table .col-gateway code,
+.pgma-rule-group h3 code {
+	background: none;
+	padding: 0;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--pgma-muted);
+}
+
+.pgma-table .col-gateway { width: 26%; }
+.pgma-table .col-status  { width: 110px; }
+.pgma-table .col-min     { width: 180px; }
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+
+.pgma-badge {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-	font-weight: 600;
-	font-size: 14px;
-	margin-top: 8px;
+	padding: 2px 10px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1.7;
 }
 
-.pgma-rule-group {
-	margin: 24px 0;
+.pgma-badge::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
 }
 
-.pgma-rule-group h3 code {
-	font-weight: 400;
-	margin-left: 6px;
+.pgma-badge--active {
+	background: #edfaef;
+	color: #00733b;
+}
+
+.pgma-badge--inactive {
+	background: #f0f0f1;
 	color: #646970;
 }
 
-.pgma-section-divider {
-	margin: 32px 0 24px;
-	border: none;
-	border-top: 1px solid #dcdcde;
+/* ── Inputs ─────────────────────────────────────────────────────────────── */
+
+.pgma-input-group {
+	display: flex;
+	align-items: stretch;
+	max-width: 160px;
+	border: 1px solid #8c8f94;
+	border-radius: 6px;
+	background: #fff;
+	overflow: hidden;
 }
 
-/*
- * Table layout is intentionally auto (not "fixed") so columns size to their
- * content — the number/select inputs below need more room than a percentage
- * grid gives them at typical admin widths. pgma-table-scroll is the overflow
- * safety net: on narrow viewports the table scrolls within itself instead of
- * breaking the page layout.
- */
-.pgma-table-scroll {
-	overflow-x: auto;
-	margin-bottom: 8px;
+.pgma-input-group:focus-within {
+	border-color: var(--pgma-accent);
+	box-shadow: 0 0 0 1px var(--pgma-accent);
+}
+
+.pgma-affix {
+	display: flex;
+	align-items: center;
+	padding: 0 10px;
+	min-width: 12px;
+	justify-content: center;
+	background: var(--pgma-subtle);
+	border-right: 1px solid var(--pgma-border);
+	color: var(--pgma-muted);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.pgma-wrap .pgma-input-group input {
+	flex: 1;
+	min-width: 0;
+	width: 100%;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	text-align: right;
+	min-height: 34px;
+}
+
+.pgma-wrap .pgma-input-group input:focus {
+	box-shadow: none;
+	outline: none;
+}
+
+.pgma-wrap .pgma-input-text {
+	width: 100%;
+	max-width: 440px;
+	min-height: 36px;
+	border-radius: 6px;
+}
+
+.pgma-wrap select {
+	min-height: 36px;
+	border-radius: 6px;
+	width: 100%;
+}
+
+.pgma-hint {
+	font-size: 12px;
+	color: var(--pgma-muted);
+	margin: 6px 0 0;
+}
+
+.pgma-hint code {
+	font-size: 11px;
+	padding: 1px 4px;
+}
+
+/* Toggle switch built on a native checkbox — keyboard/screen-reader behaviour stays native. */
+.pgma-wrap input[type="checkbox"].pgma-switch {
+	appearance: none;
+	position: relative;
+	flex-shrink: 0;
+	width: 36px;
+	height: 20px;
+	margin: 0;
+	border: 0;
+	border-radius: 999px;
+	background: #c3c4c7;
+	box-shadow: none;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.pgma-wrap input[type="checkbox"].pgma-switch::before {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 16px;
+	height: 16px;
+	margin: 0;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+	transition: transform 0.15s ease;
+}
+
+.pgma-wrap input[type="checkbox"].pgma-switch:checked {
+	background: var(--pgma-accent);
+}
+
+.pgma-wrap input[type="checkbox"].pgma-switch:checked::before {
+	transform: translateX(16px);
+}
+
+.pgma-wrap input[type="checkbox"].pgma-switch:focus-visible {
+	box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pgma-accent);
+	outline: none;
+}
+
+/* ── Rule groups ────────────────────────────────────────────────────────── */
+
+.pgma-rule-group__head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.pgma-rule-group h3 {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	margin: 0;
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.pgma-empty {
+	color: var(--pgma-muted);
+	text-align: center;
+	padding: 16px;
+	margin: 0 0 12px;
+	border: 1px dashed var(--pgma-border);
+	border-radius: var(--pgma-radius);
+}
+
+/* Empty state vs. table swap purely in CSS, so add/remove rows need no extra JS. */
+.pgma-rule-group:has(.pgma-rule-row) .pgma-rule-empty,
+.pgma-rule-group:not(:has(.pgma-rule-row)) .pgma-table-scroll {
+	display: none;
 }
 
 .pgma-rule-table {
 	min-width: 980px;
-}
-
-.pgma-rule-table th,
-.pgma-rule-table td {
-	padding: 10px 12px;
-	vertical-align: middle;
+	margin-bottom: 12px;
 }
 
 .pgma-rule-table .col-active,
 .pgma-rule-table .col-taxable,
 .pgma-rule-table .col-remove {
-	width: 70px;
+	width: 64px;
 	text-align: center;
-	white-space: nowrap;
 }
 
 .pgma-rule-table .col-min-cart,
 .pgma-rule-table .col-value,
 .pgma-rule-table .col-cap {
-	width: 140px;
+	width: 150px;
 }
 
 .pgma-rule-table .col-kind,
 .pgma-rule-table .col-type {
-	width: 130px;
-}
-
-.pgma-rule-table .col-kind select,
-.pgma-rule-table .col-type select {
-	width: 100% !important;
+	width: 120px;
 }
 
 .pgma-rule-table .col-label {
-	width: auto;
-	min-width: 220px;
+	min-width: 200px;
 }
 
-.pgma-rule-table .col-label input[type="text"] {
-	width: 100% !important;
+.pgma-remove-rule {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: 0;
+	border-radius: 6px;
+	background: none;
+	color: #b32d2e;
+	cursor: pointer;
 }
 
-.pgma-add-rule {
+.pgma-remove-rule:hover,
+.pgma-remove-rule:focus-visible {
+	background: #fcf0f1;
+	outline: none;
+}
+
+.pgma-wrap .pgma-add-rule {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	border-radius: 6px;
+}
+
+/* Must out-rank core's `.wp-core-ui .button .dashicons` (line-height 1.9, vertical-align top). */
+.pgma-wrap .button.pgma-add-rule .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	line-height: 1;
+	vertical-align: middle;
+}
+
+/* ── Save bar ───────────────────────────────────────────────────────────── */
+
+.pgma-savebar {
+	position: sticky;
+	bottom: 0;
+	z-index: 10;
+	display: flex;
+	justify-content: flex-end;
+	padding: 12px 16px;
 	margin-top: 8px;
+	background: var(--pgma-surface);
+	border: 1px solid var(--pgma-border);
+	border-radius: var(--pgma-radius);
+	box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.pgma-card .pgma-savebar {
+	margin: 16px -24px -20px;
+	padding: 12px 24px;
+	background: var(--pgma-subtle);
+	border: 0;
+	border-top: 1px solid var(--pgma-border);
+	border-radius: 0 0 var(--pgma-radius) var(--pgma-radius);
+	box-shadow: none;
+}
+
+.pgma-wrap .pgma-savebar .button-primary {
+	min-height: 36px;
+	padding: 0 20px;
+	border-radius: 6px;
+}
+
+/* ── Small screens ──────────────────────────────────────────────────────── */
+
+@media (max-width: 782px) {
+	.pgma-header {
+		flex-direction: column;
+	}
+
+	.pgma-card {
+		padding: 16px;
+	}
+
+	.pgma-card .pgma-savebar {
+		margin: 16px -16px -16px;
+		padding: 12px 16px;
+	}
+
+	/* Limits table collapses to stacked rows; the rules table keeps its horizontal scroll. */
+	.pgma-table:not(.pgma-rule-table) thead {
+		display: none;
+	}
+
+	.pgma-table:not(.pgma-rule-table) td {
+		display: block;
+		width: auto;
+		padding: 6px 0;
+		border: 0;
+	}
+
+	.pgma-table:not(.pgma-rule-table) tr {
+		display: block;
+		padding: 12px 0;
+		border-bottom: 1px solid #f0f0f1;
+	}
+
+	.pgma-input-group {
+		max-width: none;
+	}
 }

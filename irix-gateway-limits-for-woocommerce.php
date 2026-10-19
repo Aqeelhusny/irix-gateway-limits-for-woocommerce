@@ -3,7 +3,7 @@
  * Plugin Name: Irix Gateway Limits for WooCommerce
  * Plugin URI:  https://irixsolutions.net
  * Description: Restrict WooCommerce payment gateways by minimum cart total. Configure per-gateway minimums from WooCommerce > Gateway Limits.
- * Version:     1.3.2
+ * Version:     1.4.0
  * Author:      Aqeel Husny
  * Text Domain: irix-gateway-limits-for-woocommerce
  * License:         GPLv2 or later
@@ -12,21 +12,22 @@
  * Requires PHP:     8.0
  * Requires Plugins: woocommerce
  * WC requires at least: 7.0
- * WC tested up to:  9.4
+ * WC tested up to:  11.1
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'PGMA_VERSION',    '1.3.2' );
+define( 'PGMA_VERSION',    '1.4.0' );
 define( 'PGMA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PGMA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 /**
- * Declare HPOS compatibility so WooCommerce doesn't flag this plugin.
+ * Declare HPOS and Cart/Checkout Blocks compatibility so WooCommerce doesn't flag this plugin.
  */
 add_action( 'before_woocommerce_init', function () {
 	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
 		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', __FILE__, true );
 	}
 } );
 
@@ -142,30 +143,72 @@ final class PGMA_Gateway_Min_Amount {
 		}
 
 		$gateways = $this->all_registered_gateways();
-		$limits   = (array) get_option( self::OPTION_KEY, [] );
-		$currency = get_woocommerce_currency_symbol();
+		$tab      = ( sanitize_key( $_GET['tab'] ?? '' ) === 'rules' ) ? 'rules' : 'limits'; // phpcs:ignore WordPress.Security.NonceVerification
+		$tabs     = [
+			'limits' => __( 'Minimum Amounts', 'irix-gateway-limits-for-woocommerce' ),
+			'rules'  => __( 'Discounts & Fees', 'irix-gateway-limits-for-woocommerce' ),
+		];
 		?>
 		<div class="wrap pgma-wrap">
-			<h1 class="wp-heading-inline"><?php esc_html_e( 'Payment Gateway Limits', 'irix-gateway-limits-for-woocommerce' ); ?></h1>
-			<p class="pgma-description">
-				<?php esc_html_e( 'Set a minimum cart subtotal for each gateway. Leave blank (or 0) for no minimum. Only gateways enabled inside WooCommerce → Payments are shown here.', 'irix-gateway-limits-for-woocommerce' ); ?>
-			</p>
+			<header class="pgma-header">
+				<div>
+					<h1><?php esc_html_e( 'Payment Gateway Limits', 'irix-gateway-limits-for-woocommerce' ); ?></h1>
+					<p><?php esc_html_e( 'Control when each payment method is offered, and reward or charge customers based on how they pay.', 'irix-gateway-limits-for-woocommerce' ); ?></p>
+				</div>
+				<span class="pgma-version">v<?php echo esc_html( PGMA_VERSION ); ?></span>
+			</header>
+			<hr class="wp-header-end">
 
-			<?php if ( isset( $_GET['updated'] ) && current_user_can( 'manage_woocommerce' ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
+			<?php if ( isset( $_GET['updated'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
 				<div class="notice notice-success is-dismissible">
 					<p><?php esc_html_e( 'Settings saved successfully.', 'irix-gateway-limits-for-woocommerce' ); ?></p>
 				</div>
 			<?php endif; ?>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<?php wp_nonce_field( 'pgma_save_settings', 'pgma_nonce' ); ?>
-				<input type="hidden" name="action" value="pgma_save">
+			<nav class="pgma-tabs" aria-label="<?php esc_attr_e( 'Settings sections', 'irix-gateway-limits-for-woocommerce' ); ?>">
+				<?php foreach ( $tabs as $slug => $label ) : ?>
+					<a
+						href="<?php echo esc_url( add_query_arg( [ 'page' => 'pgma-settings', 'tab' => $slug ], admin_url( 'admin.php' ) ) ); ?>"
+						class="pgma-tab<?php echo $slug === $tab ? ' is-active' : ''; ?>"
+						<?php echo $slug === $tab ? 'aria-current="page"' : ''; ?>
+					><?php echo esc_html( $label ); ?></a>
+				<?php endforeach; ?>
+			</nav>
 
-				<table class="wp-list-table widefat fixed striped pgma-table">
+			<?php
+			if ( 'rules' === $tab ) {
+				$this->render_rules_section( $gateways );
+			} else {
+				$this->render_limits_section( $gateways );
+			}
+			?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the per-gateway minimum cart amount form.
+	 *
+	 * @param WC_Payment_Gateway[] $gateways
+	 */
+	private function render_limits_section( array $gateways ): void {
+		$limits   = (array) get_option( self::OPTION_KEY, [] );
+		$currency = get_woocommerce_currency_symbol();
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="pgma-card">
+			<?php wp_nonce_field( 'pgma_save_settings', 'pgma_nonce' ); ?>
+			<input type="hidden" name="action" value="pgma_save">
+
+			<div class="pgma-card__head">
+				<h2><?php esc_html_e( 'Minimum cart amount per gateway', 'irix-gateway-limits-for-woocommerce' ); ?></h2>
+				<p><?php esc_html_e( 'A gateway is hidden at checkout until the cart subtotal (after coupons, excluding tax) reaches its minimum. Leave blank or 0 for no minimum.', 'irix-gateway-limits-for-woocommerce' ); ?></p>
+			</div>
+
+			<div class="pgma-table-scroll">
+				<table class="pgma-table">
 					<thead>
 						<tr>
 							<th class="col-gateway"><?php esc_html_e( 'Payment Gateway', 'irix-gateway-limits-for-woocommerce' ); ?></th>
-							<th class="col-id"><?php esc_html_e( 'Gateway ID', 'irix-gateway-limits-for-woocommerce' ); ?></th>
 							<th class="col-status"><?php esc_html_e( 'Status', 'irix-gateway-limits-for-woocommerce' ); ?></th>
 							<th class="col-min"><?php esc_html_e( 'Minimum Cart Amount', 'irix-gateway-limits-for-woocommerce' ); ?></th>
 							<th class="col-notice"><?php esc_html_e( 'Customer Notice', 'irix-gateway-limits-for-woocommerce' ); ?></th>
@@ -174,7 +217,7 @@ final class PGMA_Gateway_Min_Amount {
 					<tbody>
 						<?php if ( empty( $gateways ) ) : ?>
 							<tr>
-								<td colspan="5">
+								<td colspan="4" class="pgma-empty">
 									<?php esc_html_e( 'No payment gateways are registered. Please configure gateways in WooCommerce → Payments.', 'irix-gateway-limits-for-woocommerce' ); ?>
 								</td>
 							</tr>
@@ -187,28 +230,22 @@ final class PGMA_Gateway_Min_Amount {
 							<tr>
 								<td class="col-gateway">
 									<strong><?php echo esc_html( $gateway->get_method_title() ?: $gateway->get_title() ); ?></strong>
-								</td>
-								<td class="col-id">
 									<code><?php echo esc_html( $id ); ?></code>
 								</td>
 								<td class="col-status">
-									<?php if ( $active ) : ?>
-										<span class="pgma-badge pgma-badge--active"><?php esc_html_e( 'Enabled', 'irix-gateway-limits-for-woocommerce' ); ?></span>
-									<?php else : ?>
-										<span class="pgma-badge pgma-badge--inactive"><?php esc_html_e( 'Disabled', 'irix-gateway-limits-for-woocommerce' ); ?></span>
-									<?php endif; ?>
+									<?php $this->render_status_badge( $active ); ?>
 								</td>
 								<td class="col-min">
-									<div class="pgma-amount-wrap">
-										<span class="pgma-currency"><?php echo esc_html( $currency ); ?></span>
+									<div class="pgma-input-group">
+										<span class="pgma-affix"><?php echo esc_html( $currency ); ?></span>
 										<input
 											type="number"
 											name="pgma_limits[<?php echo esc_attr( $id ); ?>][min]"
 											value="<?php echo esc_attr( $min ); ?>"
 											min="0"
-											step="1"
+											step="0.01"
 											placeholder="0"
-											class="pgma-input-amount small-text"
+											aria-label="<?php esc_attr_e( 'Minimum cart amount', 'irix-gateway-limits-for-woocommerce' ); ?>"
 										>
 									</div>
 								</td>
@@ -218,10 +255,14 @@ final class PGMA_Gateway_Min_Amount {
 										name="pgma_limits[<?php echo esc_attr( $id ); ?>][notice]"
 										value="<?php echo esc_attr( $notice ); ?>"
 										placeholder="<?php esc_attr_e( 'Minimum order is {min} for this method.', 'irix-gateway-limits-for-woocommerce' ); ?>"
-										class="pgma-input-notice regular-text"
+										aria-label="<?php esc_attr_e( 'Customer notice', 'irix-gateway-limits-for-woocommerce' ); ?>"
+										class="pgma-input-text"
 									>
-									<p class="description">
-										<?php esc_html_e( 'Use {min} to insert the formatted minimum amount.', 'irix-gateway-limits-for-woocommerce' ); ?>
+									<p class="pgma-hint">
+										<?php
+										/* translators: %s: the {min} placeholder */
+										printf( esc_html__( 'Use %s to insert the formatted minimum amount.', 'irix-gateway-limits-for-woocommerce' ), '<code>{min}</code>' );
+										?>
 									</p>
 								</td>
 							</tr>
@@ -229,17 +270,21 @@ final class PGMA_Gateway_Min_Amount {
 						<?php endif; ?>
 					</tbody>
 				</table>
+			</div>
 
-				<p class="submit">
-					<?php submit_button( __( 'Save Settings', 'irix-gateway-limits-for-woocommerce' ), 'primary', 'submit', false ); ?>
-				</p>
-			</form>
-
-			<hr class="pgma-section-divider">
-
-			<?php $this->render_rules_section( $gateways ); ?>
-		</div>
+			<div class="pgma-savebar">
+				<?php submit_button( __( 'Save Changes', 'irix-gateway-limits-for-woocommerce' ), 'primary', 'submit', false ); ?>
+			</div>
+		</form>
 		<?php
+	}
+
+	private function render_status_badge( bool $active ): void {
+		if ( $active ) {
+			echo '<span class="pgma-badge pgma-badge--active">' . esc_html__( 'Enabled', 'irix-gateway-limits-for-woocommerce' ) . '</span>';
+		} else {
+			echo '<span class="pgma-badge pgma-badge--inactive">' . esc_html__( 'Disabled', 'irix-gateway-limits-for-woocommerce' ) . '</span>';
+		}
 	}
 
 	public function handle_save(): void {
@@ -287,13 +332,13 @@ final class PGMA_Gateway_Min_Amount {
 			'pgma-admin',
 			PGMA_PLUGIN_URL . 'assets/admin.css',
 			[],
-			PGMA_VERSION
+			$this->asset_version( 'assets/admin.css' )
 		);
 		wp_enqueue_script(
 			'pgma-rules-admin',
 			PGMA_PLUGIN_URL . 'assets/admin-rules.js',
 			[],
-			PGMA_VERSION,
+			$this->asset_version( 'assets/admin-rules.js' ),
 			true
 		);
 	}
@@ -336,8 +381,8 @@ final class PGMA_Gateway_Min_Amount {
 			'pgma-checkout-live-fee',
 			PGMA_PLUGIN_URL . 'assets/checkout-live-fee.js',
 			$dependencies,
-			PGMA_VERSION,
-			true
+			$this->asset_version( 'assets/checkout-live-fee.js' ),
+			[ 'in_footer' => true, 'strategy' => 'defer' ]
 		);
 
 		$available_gateways = WC()->payment_gateways() ? WC()->payment_gateways()->get_available_payment_gateways() : [];
@@ -365,37 +410,43 @@ final class PGMA_Gateway_Min_Amount {
 		$settings = (array) get_option( self::SETTINGS_OPTION_KEY, [] );
 		$enabled  = ( $settings['rules_enabled'] ?? 'no' ) === 'yes';
 		?>
-		<h2><?php esc_html_e( 'Gateway Discounts & Fees', 'irix-gateway-limits-for-woocommerce' ); ?></h2>
-		<p class="pgma-description">
-			<?php esc_html_e( 'Apply a conditional fee or discount to a payment gateway based on the cart subtotal. Only the single best-matching rule for a gateway is ever applied, and any rule is skipped automatically if a coupon is already on the cart.', 'irix-gateway-limits-for-woocommerce' ); ?>
-		</p>
-
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'pgma_save_rules', 'pgma_rules_nonce' ); ?>
 				<input type="hidden" name="action" value="pgma_save_rules">
 
-				<label class="pgma-master-toggle">
-					<input type="checkbox" name="pgma_rules_enabled" value="yes" <?php checked( $enabled ); ?>>
-					<?php esc_html_e( 'Enable payment gateway discounts & fees', 'irix-gateway-limits-for-woocommerce' ); ?>
-				</label>
-				<p class="description">
-					<?php esc_html_e( 'Turn this off to stop applying any rules below without losing your configuration.', 'irix-gateway-limits-for-woocommerce' ); ?>
-				</p>
+				<div class="pgma-card pgma-card--toggle">
+					<div class="pgma-card__head">
+						<h2><?php esc_html_e( 'Gateway discounts & fees', 'irix-gateway-limits-for-woocommerce' ); ?></h2>
+						<p><?php esc_html_e( 'Apply a conditional fee or discount to a payment gateway based on the cart subtotal. Only the single best-matching rule for a gateway is ever applied, and any rule is skipped automatically if a coupon is already on the cart.', 'irix-gateway-limits-for-woocommerce' ); ?></p>
+					</div>
+					<label class="pgma-master-toggle">
+						<input type="checkbox" class="pgma-switch" name="pgma_rules_enabled" value="yes" <?php checked( $enabled ); ?>>
+						<span>
+							<strong><?php esc_html_e( 'Enable discounts & fees', 'irix-gateway-limits-for-woocommerce' ); ?></strong>
+							<small><?php esc_html_e( 'Turn off to pause all rules without losing your configuration.', 'irix-gateway-limits-for-woocommerce' ); ?></small>
+						</span>
+					</label>
+				</div>
 
 				<?php if ( empty( $gateways ) ) : ?>
-					<p><?php esc_html_e( 'No payment gateways are registered. Please configure gateways in WooCommerce → Payments.', 'irix-gateway-limits-for-woocommerce' ); ?></p>
+					<div class="pgma-card pgma-empty"><?php esc_html_e( 'No payment gateways are registered. Please configure gateways in WooCommerce → Payments.', 'irix-gateway-limits-for-woocommerce' ); ?></div>
 				<?php else : ?>
 					<?php foreach ( $gateways as $id => $gateway ) :
 						$gateway_rules = $rules[ $id ] ?? [];
 					?>
-					<div class="pgma-rule-group" data-gateway="<?php echo esc_attr( $id ); ?>">
-						<h3>
-							<?php echo esc_html( $gateway->get_method_title() ?: $gateway->get_title() ); ?>
-							<code><?php echo esc_html( $id ); ?></code>
-						</h3>
+					<div class="pgma-card pgma-rule-group" data-gateway="<?php echo esc_attr( $id ); ?>">
+						<div class="pgma-rule-group__head">
+							<h3>
+								<?php echo esc_html( $gateway->get_method_title() ?: $gateway->get_title() ); ?>
+								<code><?php echo esc_html( $id ); ?></code>
+							</h3>
+							<?php $this->render_status_badge( $gateway->get_option( 'enabled' ) === 'yes' ); ?>
+						</div>
+
+						<p class="pgma-empty pgma-rule-empty"><?php esc_html_e( 'No rules yet for this gateway.', 'irix-gateway-limits-for-woocommerce' ); ?></p>
 
 						<div class="pgma-table-scroll">
-							<table class="wp-list-table widefat striped pgma-rule-table">
+							<table class="pgma-table pgma-rule-table">
 								<thead>
 									<tr>
 										<th class="col-active"><?php esc_html_e( 'Active', 'irix-gateway-limits-for-woocommerce' ); ?></th>
@@ -416,7 +467,7 @@ final class PGMA_Gateway_Min_Amount {
 								</tbody>
 							</table>
 						</div>
-						<button type="button" class="button pgma-add-rule"><?php esc_html_e( '+ Add rule', 'irix-gateway-limits-for-woocommerce' ); ?></button>
+						<button type="button" class="button pgma-add-rule"><span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span><?php esc_html_e( 'Add rule', 'irix-gateway-limits-for-woocommerce' ); ?></button>
 					</div>
 					<?php endforeach; ?>
 
@@ -425,9 +476,9 @@ final class PGMA_Gateway_Min_Amount {
 					</template>
 				<?php endif; ?>
 
-			<p class="submit">
-				<?php submit_button( __( 'Save Settings', 'irix-gateway-limits-for-woocommerce' ), 'primary', 'submit', false ); ?>
-			</p>
+			<div class="pgma-savebar">
+				<?php submit_button( __( 'Save Changes', 'irix-gateway-limits-for-woocommerce' ), 'primary', 'submit', false ); ?>
+			</div>
 		</form>
 		<?php
 	}
@@ -448,11 +499,11 @@ final class PGMA_Gateway_Min_Amount {
 		ob_start();
 		?>
 		<tr class="pgma-rule-row">
-			<td class="col-active"><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[active]" value="yes" <?php checked( $active ); ?>></td>
+			<td class="col-active"><input type="checkbox" class="pgma-switch" name="<?php echo esc_attr( $name ); ?>[active]" value="yes" <?php checked( $active ); ?> aria-label="<?php esc_attr_e( 'Active', 'irix-gateway-limits-for-woocommerce' ); ?>"></td>
 			<td class="col-min-cart">
-				<div class="pgma-amount-wrap">
-					<span class="pgma-currency"><?php echo esc_html( $currency ); ?></span>
-					<input type="number" min="0" step="0.01" name="<?php echo esc_attr( $name ); ?>[min_cart]" value="<?php echo esc_attr( $min ); ?>" class="pgma-input-amount small-text">
+				<div class="pgma-input-group">
+					<span class="pgma-affix"><?php echo esc_html( $currency ); ?></span>
+					<input type="number" min="0" step="0.01" name="<?php echo esc_attr( $name ); ?>[min_cart]" value="<?php echo esc_attr( $min ); ?>" aria-label="<?php esc_attr_e( 'Minimum cart total', 'irix-gateway-limits-for-woocommerce' ); ?>">
 				</div>
 			</td>
 			<td class="col-kind">
@@ -468,20 +519,20 @@ final class PGMA_Gateway_Min_Amount {
 				</select>
 			</td>
 			<td class="col-value">
-				<div class="pgma-amount-wrap">
-					<span class="pgma-symbol" data-currency="<?php echo esc_attr( $currency ); ?>"><?php echo esc_html( $type === 'percent' ? '%' : $currency ); ?></span>
-					<input type="number" min="0" step="0.01" name="<?php echo esc_attr( $name ); ?>[value]" value="<?php echo esc_attr( $value ); ?>" class="pgma-input-amount small-text">
+				<div class="pgma-input-group">
+					<span class="pgma-affix pgma-symbol" data-currency="<?php echo esc_attr( $currency ); ?>"><?php echo esc_html( $type === 'percent' ? '%' : $currency ); ?></span>
+					<input type="number" min="0" step="0.01" name="<?php echo esc_attr( $name ); ?>[value]" value="<?php echo esc_attr( $value ); ?>" aria-label="<?php esc_attr_e( 'Value', 'irix-gateway-limits-for-woocommerce' ); ?>">
 				</div>
 			</td>
 			<td class="col-cap">
-				<div class="pgma-amount-wrap">
-					<span class="pgma-symbol" data-currency="<?php echo esc_attr( $currency ); ?>"><?php echo esc_html( $currency ); ?></span>
-					<input type="number" min="0" step="0.01" name="<?php echo esc_attr( $name ); ?>[cap]" value="<?php echo esc_attr( $cap ); ?>" class="pgma-input-amount small-text" placeholder="<?php esc_attr_e( 'No cap', 'irix-gateway-limits-for-woocommerce' ); ?>">
+				<div class="pgma-input-group">
+					<span class="pgma-affix"><?php echo esc_html( $currency ); ?></span>
+					<input type="number" min="0" step="0.01" name="<?php echo esc_attr( $name ); ?>[cap]" value="<?php echo esc_attr( $cap ); ?>" placeholder="<?php esc_attr_e( 'No cap', 'irix-gateway-limits-for-woocommerce' ); ?>" aria-label="<?php esc_attr_e( 'Cap', 'irix-gateway-limits-for-woocommerce' ); ?>">
 				</div>
 			</td>
-			<td class="col-label"><input type="text" name="<?php echo esc_attr( $name ); ?>[label]" value="<?php echo esc_attr( $label ); ?>" class="regular-text" placeholder="<?php esc_attr_e( 'Shown on the order as a line item', 'irix-gateway-limits-for-woocommerce' ); ?>"></td>
-			<td class="col-taxable"><input type="checkbox" name="<?php echo esc_attr( $name ); ?>[taxable]" value="yes" <?php checked( $taxable ); ?>></td>
-			<td class="col-remove"><button type="button" class="button-link-delete pgma-remove-rule"><?php esc_html_e( 'Remove', 'irix-gateway-limits-for-woocommerce' ); ?></button></td>
+			<td class="col-label"><input type="text" class="pgma-input-text" name="<?php echo esc_attr( $name ); ?>[label]" value="<?php echo esc_attr( $label ); ?>" placeholder="<?php esc_attr_e( 'Shown on the order as a line item', 'irix-gateway-limits-for-woocommerce' ); ?>" aria-label="<?php esc_attr_e( 'Label', 'irix-gateway-limits-for-woocommerce' ); ?>"></td>
+			<td class="col-taxable"><input type="checkbox" class="pgma-switch" name="<?php echo esc_attr( $name ); ?>[taxable]" value="yes" <?php checked( $taxable ); ?> aria-label="<?php esc_attr_e( 'Taxable', 'irix-gateway-limits-for-woocommerce' ); ?>"></td>
+			<td class="col-remove"><button type="button" class="pgma-remove-rule" aria-label="<?php esc_attr_e( 'Remove rule', 'irix-gateway-limits-for-woocommerce' ); ?>" title="<?php esc_attr_e( 'Remove rule', 'irix-gateway-limits-for-woocommerce' ); ?>"><span class="dashicons dashicons-trash" aria-hidden="true"></span></button></td>
 		</tr>
 		<?php
 		return (string) ob_get_clean();
@@ -553,7 +604,7 @@ final class PGMA_Gateway_Min_Amount {
 		update_option( self::RULES_OPTION_KEY, $clean );
 
 		wp_safe_redirect(
-			add_query_arg( [ 'page' => 'pgma-settings', 'updated' => '1' ], admin_url( 'admin.php' ) )
+			add_query_arg( [ 'page' => 'pgma-settings', 'tab' => 'rules', 'updated' => '1' ], admin_url( 'admin.php' ) )
 		);
 		exit;
 	}
@@ -566,8 +617,9 @@ final class PGMA_Gateway_Min_Amount {
 	 * @param  WC_Payment_Gateway[] $gateways
 	 * @return WC_Payment_Gateway[]
 	 */
-	public function filter_gateways( array $gateways ): array {
-		if ( is_admin() ) {
+	public function filter_gateways( $gateways ) {
+		// Another plugin earlier in the chain may hand us a non-array; pass it through untouched.
+		if ( ! is_array( $gateways ) || is_admin() ) {
 			return $gateways;
 		}
 
@@ -877,6 +929,20 @@ final class PGMA_Gateway_Min_Amount {
 	}
 
 	// ─── Helpers ──────────────────────────────────────────────────────────────
+
+	/**
+	 * Asset cache-buster: the plugin version in production, the file's mtime
+	 * under WP_DEBUG so CSS/JS edits show up without bumping the version.
+	 */
+	private function asset_version( string $relative_path ): string {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$mtime = filemtime( PGMA_PLUGIN_DIR . $relative_path );
+			if ( $mtime ) {
+				return PGMA_VERSION . '.' . $mtime;
+			}
+		}
+		return PGMA_VERSION;
+	}
 
 	/** Returns all registered gateways (enabled + disabled). */
 	private function all_registered_gateways(): array {

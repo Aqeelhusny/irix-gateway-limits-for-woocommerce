@@ -34,7 +34,8 @@
 		} );
 
 		document.addEventListener( 'click', function ( event ) {
-			if ( event.target.classList.contains( 'pgma-remove-rule' ) ) {
+			// closest(): the click usually lands on the icon inside the button.
+			if ( event.target.closest( '.pgma-remove-rule' ) ) {
 				var row = event.target.closest( '.pgma-rule-row' );
 				if ( row ) {
 					row.remove();

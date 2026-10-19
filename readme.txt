@@ -2,8 +2,8 @@
 Contributors:      aqeelhusny
 Tags:              woocommerce, payment gateway, minimum order, cart
 Requires at least: 6.0
-Tested up to:      6.8
-Stable tag:        1.3.2
+Tested up to:      7.1
+Stable tag:        1.4.0
 Requires PHP:      8.0
 Requires Plugins:  woocommerce
 License:           GPLv2 or later
@@ -27,7 +27,7 @@ It can also apply a conditional fee or discount per gateway based on the cart su
 * Order-pay pages compare minimums against the order total being paid
 * Admin settings page under WooCommerce > Gateway Limits
 * All active and inactive gateways listed with Enabled/Disabled badge
-* HPOS (High-Performance Order Storage) compatible
+* HPOS (High-Performance Order Storage) and Cart/Checkout Blocks compatible
 
 == Installation ==
 
@@ -47,6 +47,15 @@ Yes. The gateway filter applies to both Classic and Block-based checkout. Notice
 It is replaced with the formatted minimum amount in your store currency, e.g. `රු 2,000.00`.
 
 == Changelog ==
+
+= 1.4.0 =
+* New: redesigned settings screen — tabbed layout (Minimum Amounts / Discounts & Fees), card-based sections, toggle switches, sticky save bar, and a mobile-friendly layout.
+* New: declared compatibility with WooCommerce Cart & Checkout Blocks, so WooCommerce no longer flags the plugin as incompatible.
+* Compat: tested with WordPress 7.1 and WooCommerce 11.1.
+* Fix: gateway minimums can now be set with decimals (e.g. 9.99) — the field previously only accepted whole numbers.
+* Fix: saving one section no longer discards unsaved edits in the other (each section now lives on its own tab).
+* Fix: a non-array value passed to the gateway filter by another plugin no longer causes a fatal error.
+* Tweak: the checkout script now loads deferred.
 
 = 1.3.2 =
 * New: the "minimum not met" customer notice now also shows on the cart page and on the block-based Cart and Checkout pages (previously classic checkout only).
