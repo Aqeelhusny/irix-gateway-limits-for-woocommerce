@@ -8,8 +8,8 @@
  * Text Domain: irix-gateway-limits-for-woocommerce
  * License:         GPLv2 or later
  * License URI:      https://www.gnu.org/licenses/gpl-2.0.html
- * Requires at least: 6.0
- * Requires PHP:     8.0
+ * Requires at least: 6.5
+ * Requires PHP:     8.4
  * Requires Plugins: woocommerce
  * WC requires at least: 7.0
  * WC tested up to:  11.1
@@ -35,9 +35,9 @@ final class PGMA_Gateway_Min_Amount {
 
 	private static ?self $instance = null;
 
-	public const OPTION_KEY         = 'pgma_gateway_limits';
-	public const RULES_OPTION_KEY   = 'pgma_gateway_rules';
-	public const SETTINGS_OPTION_KEY = 'pgma_settings';
+	public const string OPTION_KEY         = 'pgma_gateway_limits';
+	public const string RULES_OPTION_KEY   = 'pgma_gateway_rules';
+	public const string SETTINGS_OPTION_KEY = 'pgma_settings';
 
 	public static function instance(): self {
 		if ( null === self::$instance ) {
@@ -353,12 +353,9 @@ final class PGMA_Gateway_Min_Amount {
 	 * immediately instead of only after the next unrelated cart change.
 	 *
 	 * Classic checkout is *supposed* to handle this natively via WooCommerce
-	 * core's own 'update_checkout' trigger, but that can be broken by a
-	 * conflicting gateway/theme script (confirmed on this install — see the
-	 * active theme's checkout-helpers.php, which already works around the
-	 * same conflict for its own payment-box toggle). So this script also
-	 * triggers 'update_checkout' itself from a delegated listener, which is
-	 * unaffected by whatever breaks core's own binding.
+	 * core's own 'update_checkout' trigger, but a conflicting gateway/theme
+	 * script can break that binding. So this script also triggers
+	 * 'update_checkout' itself from a delegated listener, which is unaffected.
 	 *
 	 * Blocks checkout doesn't write the in-progress selection to the session
 	 * at all — only at order placement — so it needs the officially supported
@@ -689,7 +686,7 @@ final class PGMA_Gateway_Min_Amount {
 
 		foreach ( $limits as $id => $config ) {
 			$min = isset( $config['min'] ) ? (float) $config['min'] : 0;
-			if ( $min <= 0 || $cart_total >= $min ) {
+			if ( ! $this->is_below_minimum( (string) $id, $cart_total ) ) {
 				continue;
 			}
 			if ( ! isset( $gateways[ $id ] ) ) {
@@ -704,8 +701,8 @@ final class PGMA_Gateway_Min_Amount {
 				$messages[] = wp_kses_post( str_replace( '{min}', $min_formatted, $config['notice'] ) );
 			} else {
 				$messages[] = sprintf(
-					/* translators: 1: gateway name, 2: formatted minimum amount */
-					'<strong>%1$s</strong> ' . esc_html__( 'requires a minimum cart total of %2$s.', 'irix-gateway-limits-for-woocommerce' ),
+					/* translators: 1: gateway name (wrapped in <strong>), 2: formatted minimum amount */
+					wp_kses_post( __( '<strong>%1$s</strong> requires a minimum cart total of %2$s.', 'irix-gateway-limits-for-woocommerce' ) ),
 					$title,
 					$min_formatted
 				);
@@ -793,12 +790,8 @@ final class PGMA_Gateway_Min_Amount {
 
 		$config = $limits[ $payment_method ];
 		$min    = isset( $config['min'] ) ? (float) $config['min'] : 0;
-		if ( $min <= 0 ) {
-			return;
-		}
 
-		$cart_total = (float) WC()->cart->get_cart_contents_total();
-		if ( $cart_total >= $min ) {
+		if ( ! $this->is_below_minimum( $payment_method, (float) WC()->cart->get_cart_contents_total() ) ) {
 			return;
 		}
 
@@ -807,16 +800,17 @@ final class PGMA_Gateway_Min_Amount {
 		$title         = isset( $gateways[ $payment_method ] )
 			? $gateways[ $payment_method ]->get_title()
 			: $payment_method;
-		$min_formatted = wc_price( $min );
+		// wc_price() output carries HTML entities (e.g. &#36;); decode for a plain-text message.
+		$min_formatted = html_entity_decode( wp_strip_all_tags( wc_price( $min ) ), ENT_QUOTES, 'UTF-8' );
 
 		if ( ! empty( $config['notice'] ) ) {
-			$message = str_replace( '{min}', wp_strip_all_tags( $min_formatted ), $config['notice'] );
+			$message = str_replace( '{min}', $min_formatted, wp_strip_all_tags( $config['notice'] ) );
 		} else {
 			$message = sprintf(
 				/* translators: 1: gateway name, 2: formatted minimum amount */
 				__( '%1$s requires a minimum cart total of %2$s.', 'irix-gateway-limits-for-woocommerce' ),
 				$title,
-				wp_strip_all_tags( $min_formatted )
+				$min_formatted
 			);
 		}
 
@@ -825,7 +819,7 @@ final class PGMA_Gateway_Min_Amount {
 		if ( class_exists( \Automattic\WooCommerce\StoreApi\Exceptions\RouteException::class ) ) {
 			throw new \Automattic\WooCommerce\StoreApi\Exceptions\RouteException(
 				'pgma_gateway_restricted',
-				esc_html( $message ),
+				$message, // phpcs:ignore WordPress.Security.EscapeOutput -- plain text, rendered as text by the Blocks UI.
 				400
 			);
 		}
@@ -880,18 +874,20 @@ final class PGMA_Gateway_Min_Amount {
 			return;
 		}
 
-		$rule = $this->best_matching_rule( $rules[ $chosen ], (float) $cart->get_subtotal() );
+		// Same basis as the minimum check; equals the subtotal here since any coupon skips rules.
+		$base = (float) $cart->get_cart_contents_total();
+		$rule = $this->best_matching_rule( $rules[ $chosen ], $base );
 		if ( ! $rule ) {
 			return;
 		}
 
-		$amount = $this->calculate_rule_amount( $rule, (float) $cart->get_subtotal() );
+		$amount = $this->calculate_rule_amount( $rule, $base );
 		if ( 0.0 === $amount ) {
 			return;
 		}
 
-		$label = $rule['label'] !== '' ? $rule['label'] : __( 'Payment Method Adjustment', 'irix-gateway-limits-for-woocommerce' );
-		$cart->add_fee( $label, $amount, $rule['taxable'] === 'yes' );
+		$label = ! empty( $rule['label'] ) ? $rule['label'] : __( 'Payment Method Adjustment', 'irix-gateway-limits-for-woocommerce' );
+		$cart->add_fee( $label, $amount, ( $rule['taxable'] ?? '' ) === 'yes' );
 	}
 
 	/**
@@ -905,7 +901,7 @@ final class PGMA_Gateway_Min_Amount {
 			if ( ( $rule['active'] ?? 'yes' ) !== 'yes' ) {
 				continue;
 			}
-			if ( $cart_total < (float) $rule['min_cart'] ) {
+			if ( ! isset( $rule['min_cart'] ) || $cart_total < (float) $rule['min_cart'] ) {
 				continue;
 			}
 			if ( null === $best || (float) $rule['min_cart'] > (float) $best['min_cart'] ) {
@@ -918,14 +914,15 @@ final class PGMA_Gateway_Min_Amount {
 
 	/** Signed adjustment amount (negative = discount, positive = fee), capped and clamped. */
 	private function calculate_rule_amount( array $rule, float $base ): float {
-		$value = (float) $rule['value'];
-		$raw   = ( $rule['type'] === 'percent' ) ? ( $base * $value / 100 ) : $value;
+		$value = (float) ( $rule['value'] ?? 0 );
+		$raw   = ( ( $rule['type'] ?? 'percent' ) === 'percent' ) ? ( $base * $value / 100 ) : $value;
+		$cap   = $rule['cap'] ?? '';
 
-		if ( $rule['cap'] !== '' && $raw > (float) $rule['cap'] ) {
-			$raw = (float) $rule['cap'];
+		if ( '' !== $cap && $raw > (float) $cap ) {
+			$raw = (float) $cap;
 		}
 
-		$amount = ( $rule['kind'] === 'discount' ) ? -$raw : $raw;
+		$amount = ( ( $rule['kind'] ?? 'discount' ) === 'discount' ) ? -$raw : $raw;
 
 		// Never let a discount push the cart subtotal negative.
 		return max( $amount, -$base );
@@ -937,7 +934,12 @@ final class PGMA_Gateway_Min_Amount {
 	private function is_below_minimum( string $gateway_id, float $total ): bool {
 		$limits = (array) get_option( self::OPTION_KEY, [] );
 		$min    = (float) ( $limits[ $gateway_id ]['min'] ?? 0 );
-		return $min > 0 && $total < $min;
+		if ( $min <= 0 ) {
+			return false;
+		}
+		// Round to store precision so float noise (99.99999999 vs 100) can't flip the result.
+		$dp = wc_get_price_decimals();
+		return round( $total, $dp ) < round( $min, $dp );
 	}
 
 	/**
@@ -966,11 +968,3 @@ function pgma(): PGMA_Gateway_Min_Amount {
 	return PGMA_Gateway_Min_Amount::instance();
 }
 pgma();
-
-/** Clean up on uninstall */
-register_uninstall_hook( __FILE__, 'pgma_uninstall' );
-function pgma_uninstall(): void {
-	delete_option( PGMA_Gateway_Min_Amount::OPTION_KEY );
-	delete_option( PGMA_Gateway_Min_Amount::RULES_OPTION_KEY );
-	delete_option( PGMA_Gateway_Min_Amount::SETTINGS_OPTION_KEY );
-}

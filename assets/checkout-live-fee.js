@@ -10,13 +10,10 @@
 	/**
 	 * Classic checkout: force the native totals refresh explicitly.
 	 *
-	 * WooCommerce core is supposed to do this itself when a payment_method
-	 * radio changes, but on this site another gateway plugin's script
-	 * interferes with core's own event binding (the active theme already
-	 * works around the same conflict for its payment-box toggle — see
-	 * checkout-helpers.php). Triggering 'update_checkout' ourselves from a
-	 * delegated document-level listener sidesteps whatever is breaking core's
-	 * handler, since that listener is confirmed to fire reliably here.
+	 * WooCommerce core normally does this itself when a payment_method radio
+	 * changes, but a conflicting gateway/theme script can break core's binding.
+	 * Triggering 'update_checkout' from a delegated document-level listener
+	 * sidesteps that.
 	 */
 	function refreshClassicCheckout() {
 		if ( ! window.jQuery ) {
@@ -34,7 +31,7 @@
 	 * checkout store.
 	 */
 	function syncBlocksCheckout( gatewayId ) {
-		if ( ! window.wc || ! window.wc.blocksCheckout ) {
+		if ( ! window.wc || ! window.wc.blocksCheckout || typeof window.wc.blocksCheckout.extensionCartUpdate !== 'function' ) {
 			return;
 		}
 
@@ -44,7 +41,13 @@
 		} );
 	}
 
+	var lastGateway = null;
+
 	function handleGatewayChange( gatewayId ) {
+		if ( gatewayId === lastGateway ) {
+			return;
+		}
+		lastGateway = gatewayId;
 		refreshClassicCheckout();
 		syncBlocksCheckout( gatewayId );
 	}

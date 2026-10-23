@@ -4,7 +4,7 @@ Tags:              woocommerce, payment gateway, minimum order, cart
 Requires at least: 6.0
 Tested up to:      7.1
 Stable tag:        1.4.0
-Requires PHP:      8.0
+Requires PHP:      8.4
 Requires Plugins:  woocommerce
 License:           GPLv2 or later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -52,6 +52,7 @@ It is replaced with the formatted minimum amount in your store currency, e.g. `�
 * New: redesigned settings screen — tabbed layout (Minimum Amounts / Discounts & Fees), card-based sections, toggle switches, sticky save bar, and a mobile-friendly layout.
 * New: declared compatibility with WooCommerce Cart & Checkout Blocks, so WooCommerce no longer flags the plugin as incompatible.
 * Compat: tested with WordPress 7.1 and WooCommerce 11.1.
+* Requires PHP 8.4 or later; code is checked against PHP 8.4 and 8.5 (typed class constants, no deprecated constructs).
 * Fix: gateway minimums can now be set with decimals (e.g. 9.99) — the field previously only accepted whole numbers.
 * Fix: saving one section no longer discards unsaved edits in the other (each section now lives on its own tab).
 * Fix: a non-array value passed to the gateway filter by another plugin no longer causes a fatal error.
